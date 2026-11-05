@@ -521,9 +521,22 @@
     }
   }
 
+  // ---------- 原生门禁状态：通关后记录“可放行时长”，过期/重新挑战则清除 ----------
+  function nativeSetUnlocked(minutes) {
+    if (window.AndroidBridge && typeof window.AndroidBridge.setUnlocked === "function") {
+      window.AndroidBridge.setUnlocked(minutes);
+    }
+  }
+  function nativeClearUnlock() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.clearUnlock === "function") {
+      window.AndroidBridge.clearUnlock();
+    }
+  }
+
   // ---------- 解锁 / 倒计时 ----------
   function unlock() {
     if (timer) { clearInterval(timer); timer = null; }
+    nativeSetUnlocked(settings.duration); // 记录验证通过（不限时传 0 → 永不过期，直到家长重新挑战）
     showScreen("unlocked");
     var sub = document.getElementById("unlock-sub");
     var timeEl = document.getElementById("unlock-time");
@@ -541,6 +554,7 @@
         remaining--;
         if (remaining <= 0) {
           clearInterval(timer); timer = null;
+          nativeClearUnlock(); // 时长到，重新锁定
           showScreen("lock");
           if (window.AndroidBridge && typeof window.AndroidBridge.bringToFront === "function") {
             window.AndroidBridge.bringToFront();
@@ -582,7 +596,7 @@
     else if (action === "digit") { inputDigit(el.getAttribute("data-val")); }
     else if (action === "backspace") { handleBackspace(); }
     else if (action === "submit") { submitAnswer(); }
-    else if (action === "rechallenge") { showScreen("lock"); }
+    else if (action === "rechallenge") { nativeClearUnlock(); showScreen("lock"); }
     else if (action === "fullscreen") { toggleFullscreen(); }
     else if (action === "cdigit") { inputCustom(el.getAttribute("data-val")); }
     else if (action === "cback") { cback(); }
