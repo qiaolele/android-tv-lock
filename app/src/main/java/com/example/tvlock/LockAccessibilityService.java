@@ -38,9 +38,7 @@ public class LockAccessibilityService extends AccessibilityService {
     public void onServiceConnected() {
         isEnabled = true;
         AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                | AccessibilityEvent.TYPE_SCREEN_ON
-                | AccessibilityEvent.TYPE_SCREEN_OFF;
+        info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
         info.notificationTimeout = 100;
         setServiceInfo(info);
@@ -61,8 +59,7 @@ public class LockAccessibilityService extends AccessibilityService {
         if (event.getPackageName() != null) {
             topPackage = event.getPackageName().toString();
         }
-        if (event.getEventType() == AccessibilityEvent.TYPE_SCREEN_ON
-                || event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             // 解锁 / 窗口切换后立即检查一次（去抖）
             if (handler != null && ticker != null) {
                 handler.removeCallbacks(ticker);
