@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>电视锁 · 先看题后看电视</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1f2630;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #ffd24a;
+    --accent-2: #58a6ff;
+    --ok: #3fb950;
+    --warn: #f0883e;
+    --danger: #f85149;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 1920px; height: 1080px;
+    transform-origin: center center;
+    transform: translate(-50%, -50%) scale(1);
+    background: radial-gradient(1200px 800px at 50% -10%, #1b2433 0%, var(--bg) 60%);
+  }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; padding: 80px 120px; }
+  .screen.active { display: flex; }
+
+  .title { font-size: 96px; font-weight: 800; letter-spacing: 4px; }
+  .subtitle { font-size: 40px; color: var(--muted); margin-top: 24px; }
+  .spacer { flex: 1; }
+
+  /* 焦点元素通用 */
+  .focusable {
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+    outline: none;
+  }
+  .focused {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px var(--accent), 0 12px 40px rgba(255,210,74,.35);
+    border-color: var(--accent) !important;
+    z-index: 5;
+  }
+
+  /* 按钮 */
+  .btn {
+    min-width: 360px;
+    padding: 36px 56px;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 4px solid #30363d;
+    border-radius: 24px;
+    cursor: pointer;
+    text-align: center;
+  }
+  .btn.primary { background: linear-gradient(180deg, #2a3340, #1c232c); border-color: var(--accent-2); }
+  .btn-row { display: flex; gap: 48px; margin-top: 60px; }
+
+  .hint { font-size: 30px; color: var(--muted); margin-top: 50px; line-height: 1.6; text-align: center; }
+
+  /* 顶部状态栏 */
+  .topbar { position: absolute; top: 48px; left: 120px; right: 120px; display: flex; justify-content: space-between; align-items: center; font-size: 34px; }
+  .badge { padding: 10px 28px; border-radius: 999px; background: var(--panel-2); border: 3px solid #30363d; color: var(--muted); }
+
+  /* 答题区 */
+  .question { font-size: 150px; font-weight: 800; letter-spacing: 6px; margin-top: 40px; }
+  .answer-box {
+    margin-top: 30px;
+    min-width: 520px; min-height: 150px;
+    padding: 20px 50px;
+    font-size: 120px; font-weight: 800; color: var(--accent);
+    background: var(--panel); border: 5px solid #30363d; border-radius: 24px;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: 10px;
+  }
+  .answer-box.shake { animation: shake .4s; border-color: var(--danger); color: var(--danger); }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-18px); }
+    40% { transform: translateX(18px); }
+    60% { transform: translateX(-12px); }
+    80% { transform: translateX(12px); }
+  }
+  .flash { height: 56px; margin-top: 18px; font-size: 40px; color: var(--danger); font-weight: 700; opacity: 0; transition: opacity .2s; }
+  .flash.show { opacity: 1; }
+
+  /* 数字键盘 */
+  .keypad { display: grid; grid-template-columns: repeat(4, 160px); grid-template-rows: repeat(4, 160px); gap: 28px; margin-top: 50px; }
+  .key {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 70px; font-weight: 700;
+    background: var(--panel-2); border: 4px solid #30363d; border-radius: 22px; cursor: pointer;
+  }
+  .key.ok { background: linear-gradient(180deg, #2ea043, #238636); border-color: #2ea043; color: #fff; font-size: 56px; }
+  .key.back { background: linear-gradient(180deg, #d9772e, #bb651f); border-color: #d9772e; color: #fff; font-size: 56px; }
+  .key.empty { background: transparent; border: none; cursor: default; }
+
+  /* 设置页 */
+  .setting-group { width: 100%; max-width: 1400px; margin-bottom: 40px; }
+  .setting-label { font-size: 40px; color: var(--muted); margin-bottom: 18px; }
+  .options { display: flex; gap: 28px; flex-wrap: wrap; }
+  .opt {
+    padding: 24px 44px; font-size: 40px; font-weight: 700;
+    background: var(--panel-2); border: 4px solid #30363d; border-radius: 18px; cursor: pointer;
+  }
+  .opt.sel { background: var(--panel); border-color: var(--accent); color: var(--accent); }
+
+  /* 解锁页（选择电视） */
+  .unlock-time { font-size: 44px; font-weight: 800; color: var(--ok); }
+  .unlock-sub { font-size: 42px; color: var(--muted); margin-top: 20px; }
+  .countdown-note { font-size: 34px; color: var(--muted); margin-top: 30px; }
+  .app-grid { display: grid; grid-template-columns: repeat(3, 320px); gap: 40px; margin-top: 40px; }
+  .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px 20px; background: var(--panel-2); border: 4px solid #30363d; border-radius: 24px; cursor: pointer; }
+  .app-icon { font-size: 90px; line-height: 1; }
+  .app-name { font-size: 38px; font-weight: 700; color: var(--text); }
+
+  /* 全局提示 */
+  #toast {
+    position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
+    padding: 22px 48px; background: rgba(248,81,73,.95); color: #fff;
+    font-size: 38px; font-weight: 700; border-radius: 18px;
+    opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- 锁屏 -->
+  <section id="screen-lock" class="screen active">
+    <div class="spacer"></div>
+    <div class="title">电视锁</div>
+    <div class="subtitle">先看题，后看电视</div>
+    <div class="subtitle" id="lock-desc">做对 5 道题，解锁电视</div>
+    <div class="spacer"></div>
+    <div class="btn-row">
+      <div class="btn primary focusable" data-action="start">开始挑战</div>
+      <div class="btn focusable" data-action="settings">设置</div>
+      <div class="btn focusable" data-action="fullscreen">全屏</div>
+    </div>
+    <div class="hint">方向键移动 · 按 OK / 确认键开始<br/>做对全部题目才能解锁电视</div>
+  </section>
+
+  <!-- 设置 -->
+  <section id="screen-settings" class="screen">
+    <div class="title" style="font-size:72px">设置</div>
+    <div style="height:50px"></div>
+
+    <div class="setting-group">
+      <div class="setting-label">题目数量</div>
+      <div class="options" data-group="count">
+        <div class="opt focusable" data-val="3">3 题</div>
+        <div class="opt focusable sel" data-val="5">5 题</div>
+        <div class="opt focusable" data-val="10">10 题</div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">运算类型（可多选，按 OK 开关）</div>
+      <div class="options" data-group="ops" data-multi="1">
+        <div class="opt focusable sel" data-val="+">加法</div>
+        <div class="opt focusable sel" data-val="-">减法</div>
+        <div class="opt focusable" data-val="×">乘法</div>
+        <div class="opt focusable" data-val="÷">除法</div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">数值上限（操作数最大到多少）</div>
+      <div class="options" data-group="max">
+        <div class="opt focusable" data-val="10">10</div>
+        <div class="opt focusable sel" data-val="20">20</div>
+        <div class="opt focusable" data-val="50">50</div>
+        <div class="opt focusable" data-val="100">100</div>
+        <div class="opt focusable" data-val="custom">自定义</div>
+      </div>
+    </div>
+
+    <div class="setting-group">
+      <div class="setting-label">可看时长（时间到自动重新锁屏）</div>
+      <div class="options" data-group="duration">
+        <div class="opt focusable" data-val="15">15 分钟</div>
+        <div class="opt focusable sel" data-val="30">30 分钟</div>
+        <div class="opt focusable" data-val="60">60 分钟</div>
+        <div class="opt focusable" data-val="0">不限制</div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <div class="btn primary focusable" data-action="save">完成</div>
+      <div class="btn focusable" data-action="cancel">取消</div>
+    </div>
+  </section>
+
+  <!-- 答题 -->
+  <section id="screen-quiz" class="screen">
+    <div class="topbar">
+      <div id="quiz-progress">第 1 / 5 题</div>
+      <div class="badge" id="quiz-level">20以内·加减</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="question" id="quiz-question">3 + 4 = ?</div>
+    <div class="answer-box" id="answer-box">_</div>
+    <div class="flash" id="flash"></div>
+
+    <div class="keypad">
+      <div class="key focusable" data-action="digit" data-val="7">7</div>
+      <div class="key focusable" data-action="digit" data-val="8">8</div>
+      <div class="key focusable" data-action="digit" data-val="9">9</div>
+      <div class="key back focusable" data-action="backspace">退格</div>
+
+      <div class="key focusable" data-action="digit" data-val="4">4</div>
+      <div class="key focusable" data-action="digit" data-val="5">5</div>
+      <div class="key focusable" data-action="digit" data-val="6">6</div>
+      <div class="key empty"></div>
+
+      <div class="key focusable" data-action="digit" data-val="1">1</div>
+      <div class="key focusable" data-action="digit" data-val="2">2</div>
+      <div class="key focusable" data-action="digit" data-val="3">3</div>
+      <div class="key empty"></div>
+
+      <div class="key empty"></div>
+      <div class="key focusable" data-action="digit" data-val="0">0</div>
+      <div class="key empty"></div>
+      <div class="key ok focusable" data-action="submit">OK</div>
+    </div>
+    <div class="hint">方向键移动选数字 · OK 输入/确认 · 数字键直接输入 · 退格删除</div>
+  </section>
+
+  <!-- 自定义数值上限 -->
+  <section id="screen-custom" class="screen">
+    <div class="title" style="font-size:72px">自定义数值上限</div>
+    <div class="subtitle">用数字键盘输入操作数最大上限（2 - 999）</div>
+    <div class="answer-box" id="custom-box" style="margin-top:30px">_</div>
+    <div class="flash" id="custom-flash"></div>
+    <div class="keypad">
+      <div class="key focusable" data-action="cdigit" data-val="7">7</div>
+      <div class="key focusable" data-action="cdigit" data-val="8">8</div>
+      <div class="key focusable" data-action="cdigit" data-val="9">9</div>
+      <div class="key back focusable" data-action="cback">退格</div>
+
+      <div class="key focusable" data-action="cdigit" data-val="4">4</div>
+      <div class="key focusable" data-action="cdigit" data-val="5">5</div>
+      <div class="key focusable" data-action="cdigit" data-val="6">6</div>
+      <div class="key empty"></div>
+
+      <div class="key focusable" data-action="cdigit" data-val="1">1</div>
+      <div class="key focusable" data-action="cdigit" data-val="2">2</div>
+      <div class="key focusable" data-action="cdigit" data-val="3">3</div>
+      <div class="key empty"></div>
+
+      <div class="key empty"></div>
+      <div class="key focusable" data-action="cdigit" data-val="0">0</div>
+      <div class="key focusable" data-action="ccancel">取消</div>
+      <div class="key ok focusable" data-action="cok">确认</div>
+    </div>
+    <div class="hint">方向键移动 · 数字键输入 · OK 确认 · 选“取消”返回</div>
+  </section>
+
+  <!-- 解锁：选择想看的电视 -->
+  <section id="screen-unlocked" class="screen" style="justify-content:center">
+    <div class="topbar">
+      <div class="title" style="font-size:60px;color:var(--ok)">答题成功！请选择想看的电视</div>
+      <div class="badge" id="unlock-time">30:00</div>
+    </div>
+    <div class="unlock-sub" id="unlock-sub">本次可看 30 分钟</div>
+    <div class="app-grid" id="app-grid">
+      <div class="app-tile focusable" data-package="com.android.tv" data-name="电视直播"><div class="app-icon">📺</div><div class="app-name">电视直播</div></div>
+      <div class="app-tile focusable" data-package="com.tencent.qqlive" data-name="腾讯视频"><div class="app-icon">🎬</div><div class="app-name">腾讯视频</div></div>
+      <div class="app-tile focusable" data-package="com.qiyi.video" data-name="爱奇艺"><div class="app-icon">🍎</div><div class="app-name">爱奇艺</div></div>
+      <div class="app-tile focusable" data-package="tv.danmaku.bili" data-name="哔哩哔哩"><div class="app-icon">📡</div><div class="app-name">哔哩哔哩</div></div>
+      <div class="app-tile focusable" data-package="com.hunantv.imgo" data-name="芒果TV"><div class="app-icon">🥭</div><div class="app-name">芒果TV</div></div>
+      <div class="app-tile focusable" data-package="com.miguvideo" data-name="咪咕视频"><div class="app-icon">🎞️</div><div class="app-name">咪咕视频</div></div>
+    </div>
+    <div class="countdown-note" id="countdown-note">时间到将自动回到挑战</div>
+    <div class="btn focusable" data-action="rechallenge" style="margin-top:30px">重新挑战（家长）</div>
+  </section>
+
+  <div id="toast"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- 适配缩放 ----------
+  var app = document.getElementById("app");
+  function fit() {
+    var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    app.style.transform = "translate(-50%, -50%) scale(" + s + ")";
+  }
+  window.addEventListener("resize", fit);
+  fit();
+
+  // ---------- 配置（含本地持久化） ----------
+  var opsName = { "+": "加", "-": "减", "×": "乘", "÷": "除" };
+  var DEFAULTS = { count: 5, ops: ["+", "-"], max: 20, duration: 30 };
+  function loadSettings() {
+    var s = {};
+    try { s = JSON.parse(localStorage.getItem("tvlock_settings") || "{}"); } catch (e) { s = {}; }
+    var merged = {};
+    for (var k in DEFAULTS) merged[k] = DEFAULTS[k];
+    for (var k2 in s) if (Object.prototype.hasOwnProperty.call(s, k2)) merged[k2] = s[k2];
+    if (!merged.ops || !merged.ops.length) merged.ops = DEFAULTS.ops.slice();
+    return merged;
+  }
+  function saveSettings() {
+    try { localStorage.setItem("tvlock_settings", JSON.stringify(settings)); } catch (e) {}
+  }
+  var settings = loadSettings();
+
+  // ---------- 焦点系统（基于坐标的空间导航） ----------
+  var currentFocus = null;
+  function getFocusables() {
+    var screen = document.querySelector(".screen.active");
+    return screen ? Array.prototype.slice.call(screen.querySelectorAll(".focusable")) : [];
+  }
+  function setFocus(el) {
+    if (!el) return;
+    var prev = document.querySelector(".focused");
+    if (prev) prev.classList.remove("focused");
+    el.classList.add("focused");
+    currentFocus = el;
+  }
+  function focusFirst() {
+    var f = getFocusables();
+    if (f.length) setFocus(f[0]);
+  }
+  function rectCenter(el) {
+    var r = el.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+  function moveFocus(dir) {
+    var f = getFocusables();
+    if (!currentFocus || !f.length) return;
+    var cur = rectCenter(currentFocus);
+    var best = null, bestScore = Infinity;
+    for (var i = 0; i < f.length; i++) {
+      var el = f[i];
+      if (el === currentFocus) continue;
+      var c = rectCenter(el);
+      var dx = c.x - cur.x, dy = c.y - cur.y;
+      var primary = 0, secondary = 0, valid = true;
+      if (dir === "left") { if (dx >= -1) valid = false; primary = -dx; secondary = Math.abs(dy); }
+      else if (dir === "right") { if (dx <= 1) valid = false; primary = dx; secondary = Math.abs(dy); }
+      else if (dir === "up") { if (dy >= -1) valid = false; primary = -dy; secondary = Math.abs(dx); }
+      else if (dir === "down") { if (dy <= 1) valid = false; primary = dy; secondary = Math.abs(dx); }
+      if (!valid) continue;
+      var score = primary * 2 + secondary;
+      if (score < bestScore) { bestScore = score; best = el; }
+    }
+    if (best) setFocus(best);
+  }
+
+  // ---------- 屏幕切换 ----------
+  function showScreen(id) {
+    var screens = document.querySelectorAll(".screen");
+    for (var i = 0; i < screens.length; i++) screens[i].classList.remove("active");
+    document.getElementById("screen-" + id).classList.add("active");
+    focusFirst();
+  }
+
+  // ---------- 出题 ----------
+  function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function genQuestion() {
+    var ops = settings.ops;
+    var max = settings.max;
+    var t = ops[rnd(0, ops.length - 1)];
+    var a, b, ans;
+    if (t === "+") { a = rnd(1, max); b = rnd(1, max); ans = a + b; }
+    else if (t === "-") { a = rnd(1, max); b = rnd(1, max); if (b > a) { var tmp = a; a = b; b = tmp; } ans = a - b; }
+    else if (t === "×") { var m = Math.min(max, 9); a = rnd(1, m); b = rnd(1, m); ans = a * b; }
+    else { b = rnd(1, 9); ans = rnd(1, 9); a = b * ans; }
+    return { text: a + " " + t + " " + b + " = ?", answer: ans };
+  }
+
+  // ---------- 答题状态 ----------
+  var questions = [], qi = 0, total = 0, currentAnswer = "";
+  var timer = null, remaining = 0;
+  var customMode = false, customValue = "";
+
+  function startQuiz() {
+    total = settings.count;
+    questions = [];
+    for (var i = 0; i < total; i++) questions.push(genQuestion());
+    qi = 0;
+    showQuestion();
+    showScreen("quiz");
+  }
+
+  function showQuestion() {
+    currentAnswer = "";
+    var q = questions[qi];
+    document.getElementById("quiz-question").textContent = q.text;
+    document.getElementById("quiz-progress").textContent = "第 " + (qi + 1) + " / " + total + " 题";
+    var opsShort = settings.ops.map(function (o) { return opsName[o]; }).join("");
+    document.getElementById("quiz-level").textContent = settings.max + "以内·" + opsShort;
+    updateAnswerDisplay();
+    setFocus(document.querySelector("#screen-quiz .key[data-val='1']") || getFocusables()[0]);
+  }
+
+  function updateAnswerDisplay() {
+    var box = document.getElementById("answer-box");
+    box.textContent = currentAnswer === "" ? "_" : currentAnswer;
+  }
+
+  var flashTimer = null;
+  function flash(msg) {
+    var f = document.getElementById("flash");
+    f.textContent = msg;
+    f.classList.add("show");
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { f.classList.remove("show"); }, 1500);
+  }
+  var cflashTimer = null;
+  function flashCustom(msg) {
+    var f = document.getElementById("custom-flash");
+    f.textContent = msg;
+    f.classList.add("show");
+    if (cflashTimer) clearTimeout(cflashTimer);
+    cflashTimer = setTimeout(function () { f.classList.remove("show"); }, 1500);
+  }
+  var toastTimer = null;
+  function toast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 1500);
+  }
+
+  function inputDigit(d) {
+    if (currentAnswer.length >= 4) return;
+    currentAnswer += d;
+    updateAnswerDisplay();
+  }
+  function handleBackspace() {
+    currentAnswer = currentAnswer.slice(0, -1);
+    updateAnswerDisplay();
+  }
+  function submitAnswer() {
+    if (currentAnswer === "") { flash("请先输入答案"); return; }
+    var q = questions[qi];
+    if (Number(currentAnswer) === q.answer) {
+      qi++;
+      if (qi >= total) { unlock(); }
+      else { showQuestion(); }
+    } else {
+      var box = document.getElementById("answer-box");
+      box.classList.add("shake");
+      setTimeout(function () { box.classList.remove("shake"); }, 400);
+      flash("答错了，再想想");
+      currentAnswer = "";
+      updateAnswerDisplay();
+    }
+  }
+
+  // ---------- 全屏 ----------
+  function toggleFullscreen() {
+    var el = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (el.requestFullscreen) el.requestFullscreen();
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+      toast("已全屏 · 按 Esc 退出全屏");
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+  }
+
+  // ---------- 选择电视 / 拉起应用 ----------
+  function launchApp(pkg, name) {
+    // APK 版：通过原生桥接直接拉起对应电视 App；网页版无此能力，提示手动打开
+    if (window.AndroidBridge && typeof window.AndroidBridge.launchApp === "function") {
+      window.AndroidBridge.launchApp(pkg, name);
+    } else {
+      toast("请在电视上手动打开「" + name + "」");
+    }
+  }
+
+  // ---------- 解锁 / 倒计时 ----------
+  function unlock() {
+    if (timer) { clearInterval(timer); timer = null; }
+    showScreen("unlocked");
+    var sub = document.getElementById("unlock-sub");
+    var timeEl = document.getElementById("unlock-time");
+    var note = document.getElementById("countdown-note");
+    if (settings.duration === 0) {
+      sub.textContent = "本次不限制观看时长";
+      timeEl.textContent = "∞";
+      note.textContent = "家长可随时点“重新挑战”再次锁定";
+    } else {
+      remaining = settings.duration * 60;
+      sub.textContent = "本次可看 " + settings.duration + " 分钟";
+      note.textContent = "时间到将自动回到挑战";
+      renderTime();
+      timer = setInterval(function () {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(timer); timer = null;
+          showScreen("lock");
+          if (window.AndroidBridge && typeof window.AndroidBridge.bringToFront === "function") {
+            window.AndroidBridge.bringToFront();
+          }
+          return;
+        }
+        renderTime();
+      }, 1000);
+    }
+  }
+  function renderTime() {
+    var m = Math.floor(remaining / 60), s = remaining % 60;
+    var mm = (m < 10 ? "0" : "") + m, ss = (s < 10 ? "0" : "") + s;
+    document.getElementById("unlock-time").textContent = mm + ":" + ss;
+  }
+
+  // ---------- 动作分发 ----------
+  function activate(el) {
+    if (!el) return;
+    if (el.getAttribute("data-package")) { launchApp(el.getAttribute("data-package"), el.getAttribute("data-name")); return; }
+    if (el.classList.contains("opt")) {
+      var group = el.closest(".options");
+      var gname = group.getAttribute("data-group");
+      if (gname === "ops") { toggleOps(el); return; }
+      var sibs = group.querySelectorAll(".opt");
+      for (var i = 0; i < sibs.length; i++) sibs[i].classList.toggle("sel", sibs[i] === el);
+      if (gname === "max" && el.getAttribute("data-val") === "custom") { openCustom(); }
+      return;
+    }
+    var action = el.getAttribute("data-action");
+    if (action === "start") { startQuiz(); }
+    else if (action === "settings") { syncSettingsUI(); showScreen("settings"); }
+    else if (action === "cancel") { showScreen("lock"); }
+    else if (action === "save") { applySettingsFromUI(); showScreen("lock"); }
+    else if (action === "digit") { inputDigit(el.getAttribute("data-val")); }
+    else if (action === "backspace") { handleBackspace(); }
+    else if (action === "submit") { submitAnswer(); }
+    else if (action === "rechallenge") { showScreen("lock"); }
+    else if (action === "fullscreen") { toggleFullscreen(); }
+    else if (action === "cdigit") { inputCustom(el.getAttribute("data-val")); }
+    else if (action === "cback") { cback(); }
+    else if (action === "cok") { confirmCustom(); }
+    else if (action === "ccancel") { cancelCustom(); }
+  }
+
+  // ---------- 设置页读写 ----------
+  function setGroupSel(gname, val) {
+    var g = document.querySelector('#screen-settings .options[data-group="' + gname + '"]');
+    var opts = g.querySelectorAll(".opt");
+    for (var i = 0; i < opts.length; i++) opts[i].classList.toggle("sel", opts[i].getAttribute("data-val") === val);
+  }
+  function syncSettingsUI() {
+    setGroupSel("count", String(settings.count));
+    setGroupSel("duration", String(settings.duration));
+    var maxGroup = document.querySelector('#screen-settings .options[data-group="max"]');
+    var maxOpts = maxGroup.querySelectorAll(".opt");
+    for (var i = 0; i < maxOpts.length; i++) {
+      var v = maxOpts[i].getAttribute("data-val");
+      if (v === "custom") {
+        var isCustom = [10, 20, 50, 100].indexOf(settings.max) === -1;
+        maxOpts[i].classList.toggle("sel", isCustom);
+        maxOpts[i].textContent = isCustom ? ("自定义(" + settings.max + ")") : "自定义";
+      } else {
+        maxOpts[i].classList.toggle("sel", Number(v) === settings.max);
+      }
+    }
+    var og = document.querySelector('#screen-settings .options[data-group="ops"]');
+    var oopts = og.querySelectorAll(".opt");
+    for (var j = 0; j < oopts.length; j++) {
+      oopts[j].classList.toggle("sel", settings.ops.indexOf(oopts[j].getAttribute("data-val")) !== -1);
+    }
+  }
+  function applySettingsFromUI() {
+    ["count", "max", "duration"].forEach(function (gname) {
+      var g = document.querySelector('#screen-settings .options[data-group="' + gname + '"]');
+      var sel = g.querySelector(".opt.sel");
+      if (sel) {
+        var v = sel.getAttribute("data-val");
+        if (gname === "max") { if (v !== "custom") settings.max = Number(v); }
+        else { settings[gname] = Number(v); }
+      }
+    });
+    var og = document.querySelector('#screen-settings .options[data-group="ops"]');
+    var ops = [];
+    var oopts = og.querySelectorAll(".opt.sel");
+    for (var i = 0; i < oopts.length; i++) ops.push(oopts[i].getAttribute("data-val"));
+    if (ops.length) settings.ops = ops;
+    updateLockDesc();
+    saveSettings();
+  }
+  function updateLockDesc() {
+    var opsShort = settings.ops.map(function (o) { return opsName[o]; }).join("");
+    document.getElementById("lock-desc").textContent = "做对 " + settings.count + " 道" + settings.max + "以内" + opsShort + "题，解锁电视";
+  }
+  function toggleOps(el) {
+    var group = el.closest(".options");
+    var sibs = group.querySelectorAll(".opt");
+    if (el.classList.contains("sel")) {
+      var count = 0;
+      for (var i = 0; i < sibs.length; i++) if (sibs[i].classList.contains("sel")) count++;
+      if (count <= 1) { toast("至少保留一种运算"); return; }
+      el.classList.remove("sel");
+    } else {
+      el.classList.add("sel");
+    }
+    var ops = [];
+    for (var j = 0; j < sibs.length; j++) if (sibs[j].classList.contains("sel")) ops.push(sibs[j].getAttribute("data-val"));
+    settings.ops = ops;
+  }
+  // 单选组：左右键在组内循环切换选中
+  function cycleOption(el, dir) {
+    var group = el.closest(".options");
+    if (!group) return;
+    var opts = Array.prototype.slice.call(group.querySelectorAll(".opt"));
+    var idx = opts.indexOf(el);
+    var next = (idx + dir + opts.length) % opts.length;
+    for (var i = 0; i < opts.length; i++) opts[i].classList.toggle("sel", i === next);
+    setFocus(opts[next]);
+  }
+
+  // ---------- 自定义数值上限 ----------
+  function openCustom() {
+    customMode = true;
+    customValue = "";
+    document.getElementById("custom-box").textContent = "_";
+    var cf = document.getElementById("custom-flash"); cf.classList.remove("show"); cf.textContent = "";
+    showScreen("custom");
+  }
+  function inputCustom(d) {
+    if (customValue.length >= 3) return;
+    customValue += d;
+    document.getElementById("custom-box").textContent = customValue;
+  }
+  function cback() {
+    customValue = customValue.slice(0, -1);
+    document.getElementById("custom-box").textContent = customValue === "" ? "_" : customValue;
+  }
+  function confirmCustom() {
+    if (customValue === "") { flashCustom("请输入上限"); return; }
+    var n = Number(customValue);
+    if (n < 2) { flashCustom("上限至少 2"); return; }
+    settings.max = n;
+    customMode = false;
+    showScreen("settings");
+    syncSettingsUI();
+  }
+  function cancelCustom() {
+    customMode = false;
+    showScreen("settings");
+  }
+
+  // ---------- 鼠标支持 ----------
+  document.addEventListener("click", function (e) {
+    var el = e.target.closest(".focusable");
+    if (!el) return;
+    setFocus(el);
+    activate(el);
+  });
+  document.addEventListener("click", function (e) {
+    var opt = e.target.closest(".opt");
+    if (!opt) return;
+    var group = opt.closest(".options");
+    if (group.getAttribute("data-multi")) return; // 多选组由 activate 处理
+    var sibs = opt.parentElement.querySelectorAll(".opt");
+    for (var i = 0; i < sibs.length; i++) sibs[i].classList.toggle("sel", sibs[i] === opt);
+  });
+
+  // ---------- 键盘（遥控器）支持 ----------
+  window.addEventListener("keydown", function (e) {
+    var k = e.key;
+    if (k === "ArrowUp") { moveFocus("up"); e.preventDefault(); }
+    else if (k === "ArrowDown") { moveFocus("down"); e.preventDefault(); }
+    else if (k === "ArrowLeft") {
+      if (customMode) moveFocus("left");
+      else if (currentFocus && currentFocus.classList.contains("opt") && currentFocus.closest(".options").getAttribute("data-multi")) moveFocus("left");
+      else if (currentFocus && currentFocus.classList.contains("opt")) cycleOption(currentFocus, -1);
+      else moveFocus("left");
+      e.preventDefault();
+    }
+    else if (k === "ArrowRight") {
+      if (customMode) moveFocus("right");
+      else if (currentFocus && currentFocus.classList.contains("opt") && currentFocus.closest(".options").getAttribute("data-multi")) moveFocus("right");
+      else if (currentFocus && currentFocus.classList.contains("opt")) cycleOption(currentFocus, 1);
+      else moveFocus("right");
+      e.preventDefault();
+    }
+    else if (k === "Enter" || k === " ") {
+      if (customMode) {
+        if (currentFocus && currentFocus.getAttribute("data-action") === "ccancel") cancelCustom();
+        else confirmCustom();
+      } else {
+        activate(currentFocus);
+      }
+      e.preventDefault();
+    }
+    else if (k === "Backspace") {
+      if (customMode) cback();
+      else if (document.getElementById("screen-quiz").classList.contains("active")) handleBackspace();
+      e.preventDefault();
+    }
+    else if (k === "f" || k === "F") {
+      toggleFullscreen();
+      e.preventDefault();
+    }
+    else if (/^[0-9]$/.test(k)) {
+      if (customMode) inputCustom(k);
+      else if (document.getElementById("screen-quiz").classList.contains("active")) inputDigit(k);
+      e.preventDefault();
+    }
+  });
+
+  // ---------- 启动 ----------
+  syncSettingsUI();
+  updateLockDesc();
+  showScreen("lock");
+})();
+</script>
+</body>
+</html>

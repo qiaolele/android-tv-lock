@@ -1,0 +1,24 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.example.tvlock'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.example.tvlock"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    // 仅使用 Android 框架自带的 WebView，无需额外依赖
+}

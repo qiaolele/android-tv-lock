@@ -1,0 +1,36 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Java / Dalvik
+*.dex
+*.class
+
+# Generated / build output
+bin/
+gen/
+out/
+release/
+build/
+.gradle/
+
+# Local SDK path (should not be committed)
+local.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystores
+*.jks
+*.keystore
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db
