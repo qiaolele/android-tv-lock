@@ -1,0 +1,3 @@
+<resources>
+    <string name="accessibility_desc">电视锁：在解锁设备后自动弹出答题锁屏，必须答对题目才能进入设备主界面。用于家长控制与防沉迷。</string>
+</resources>

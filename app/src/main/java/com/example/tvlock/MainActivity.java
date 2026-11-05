@@ -5,12 +5,14 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -19,9 +21,12 @@ import android.widget.Toast;
 
 /**
  * 全屏加载本地网页 index.html（电视锁）。
- * 作为 HOME 桌面角色注册，设为默认桌面后开机/按主页键即进入答题锁屏（电视场景）。
- * 同时配合 LockReceiver + LockService，实现“解锁手机后自动弹出锁屏、答完题才能进主屏”的门禁闭环（手机场景）。
- * 通过 AndroidBridge 暴露原生能力给网页：拉起 App、回主屏、记录/清除验证状态。
+ *
+ * 两条“自动开门禁”的可靠路线（二选一即可，也可同时用）：
+ *   1) 设为默认桌面（HOME 角色）——电视/盒子开机、按主页键即进锁屏，最稳；
+ *   2) 开启无障碍（LockAccessibilityService）——手机/电视解锁后自动弹出锁屏，无需替换桌面、无需悬浮窗。
+ *
+ * 通过 AndroidBridge 暴露原生能力给网页：拉起 App、回真实主屏、记录/清除验证状态。
  */
 public class MainActivity extends Activity {
 
@@ -34,18 +39,26 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 保证后台守护服务存活（负责解锁后重新弹锁屏）
-        ensureLockServiceRunning();
-
-        // 若本次是因“解锁/开机”被网关拉起，且验证仍在有效期内，直接放行，不展示锁屏
+        // 若本次是被门禁拉起、且验证仍在有效期，直接放行（不展示锁屏）
         if (getIntent().getBooleanExtra("fromGate", false) && isUnlocked()) {
             finish();
             return;
         }
 
+        // 允许锁屏显示在其他应用之上（解锁后弹出门禁时，能盖住当前界面）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+        }
+
         hideSystemUI();
 
         webView = new WebView(this);
+        // 关键：必须显式设为 MATCH_PARENT，否则 WebView 在某些设备上不是全屏，
+        // 页面里 height:100% 会塌缩，导致内容被裁切（兼容性问题的根因之一）。
+        webView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
         ws.setBuiltInZoomControls(false);
@@ -53,27 +66,15 @@ public class MainActivity extends Activity {
         ws.setUseWideViewPort(true);
         ws.setLoadWithOverviewMode(true);
         ws.setAllowFileAccess(true);
+        ws.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
-        // 暴露原生桥接给网页：window.AndroidBridge.launchApp / launchHome / setUnlocked / clearUnlock
         webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
-
         webView.setWebViewClient(new WebViewClient());
         webView.loadUrl("file:///android_asset/index.html");
-
         setContentView(webView);
 
-        // 引导授予必要权限：悬浮窗（Android 10+ 后台弹 Activity 必需）+ 通知（Android 13+）
-        requestNeededPermissions();
-    }
-
-    private void ensureLockServiceRunning() {
-        try {
-            Intent s = new Intent(this, LockService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(s);
-            else startService(s);
-        } catch (Exception ignored) {
-            // 个别 ROM 限制后台启动前台服务时静默失败，不影响“解锁弹锁屏”主流程（依赖悬浮窗权限）
-        }
+        // 引导开启“无障碍”权限（解锁自动弹锁屏的可靠机制，无需悬浮窗）
+        requestAccessibility();
     }
 
     private boolean isUnlocked() {
@@ -82,23 +83,19 @@ public class MainActivity extends Activity {
         return System.currentTimeMillis() < passedUntil;
     }
 
-    private void requestNeededPermissions() {
-        if (!Settings.canDrawOverlays(this)) {
+    private void requestAccessibility() {
+        if (!LockAccessibilityService.isEnabled) {
             new AlertDialog.Builder(this)
-                    .setTitle("需要一项权限")
-                    .setMessage("为了让本应用在“解锁手机”后自动弹出答题锁屏，请在设置里开启「显示在其他应用上层 / 悬浮窗」权限；否则系统不允许应用在后台自动打开。")
+                    .setTitle("开启一项权限")
+                    .setMessage("为实现「解锁手机/电视后自动弹出答题锁屏」，请在「设置 → 无障碍」里开启「电视锁」。开启后无需悬浮窗，体验更干净。")
                     .setPositiveButton("去设置", (d, w) -> {
-                        Intent i = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:" + getPackageName()));
-                        startActivity(i);
+                        try {
+                            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                        } catch (Exception ignored) {
+                        }
                     })
                     .setNegativeButton("稍后", null)
                     .show();
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1);
-            }
         }
     }
 
@@ -128,20 +125,36 @@ public class MainActivity extends Activity {
             startActivity(i);
         }
 
-        /** 回到系统主屏/桌面（HOME）。用于“系统主屏”入口与解锁后退出电视锁。 */
+        /** 回到系统真实主屏（排除本应用自身，避免循环回到锁屏）。 */
         @JavascriptInterface
         public void launchHome() {
-            Intent i = new Intent(Intent.ACTION_MAIN);
-            i.addCategory(Intent.CATEGORY_HOME);
-            i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(i);
-            finish(); // 退出锁屏，把真桌面让出来（手机场景）
+            Intent home = new Intent(Intent.ACTION_MAIN);
+            home.addCategory(Intent.CATEGORY_HOME);
+            PackageManager pm = getPackageManager();
+            java.util.List<ResolveInfo> homes = pm.queryIntentActivities(home, 0);
+            for (ResolveInfo ri : homes) {
+                String pkg = ri.activityInfo.packageName;
+                if (!pkg.equals(getPackageName())) {
+                    Intent i = new Intent(Intent.ACTION_MAIN);
+                    i.addCategory(Intent.CATEGORY_HOME);
+                    i.setPackage(pkg);
+                    i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    finish();
+                    return;
+                }
+            }
+            // 没有找到其它桌面：退回系统默认 home
+            home.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(home);
+            finish();
         }
 
         /** 记录“已通过验证”的截止时间（分钟）。minutes<=0 表示不限时。 */
         @JavascriptInterface
         public void setUnlocked(float minutes) {
-            long until = (minutes <= 0) ? Long.MAX_VALUE : System.currentTimeMillis() + (long) (minutes * 60_000L);
+            long until = (minutes <= 0) ? Long.MAX_VALUE
+                    : System.currentTimeMillis() + (long) (minutes * 60_000L);
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putLong(KEY_PASSED_UNTIL, until).apply();
         }
 
@@ -154,7 +167,7 @@ public class MainActivity extends Activity {
 
     /**
      * 拦截返回键，防止误退出（防沉迷）。
-     * 家长退出方式：长按主页键切回原桌面 / 关闭悬浮窗权限，或用 adb uninstall com.example.tvlock。
+     * 家长退出方式：长按主页键切回原桌面 / 在设置里关闭无障碍，或用 adb uninstall。
      */
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {

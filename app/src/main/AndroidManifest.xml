@@ -1,27 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 开机自启 -->
+    <!-- 开机自启（配合默认桌面 / 无障碍，确保设备启动后进入门禁） -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- 前台守护服务（解锁后重新弹锁屏） -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- 悬浮窗：Android 10+ 允许后台启动 Activity（解锁自动弹锁屏必需） -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!-- 守护服务常驻通知（Android 13+ 需要） -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
         android:label="电视锁"
         android:theme="@style/Theme.TvLock.Fullscreen">
 
-        <!-- 主活动：既作为普通应用入口，又注册为 HOME（桌面），
-             在“默认桌面”里把它设为默认，开机/按主页键即进入答题锁屏（电视场景）。
-             同时配合 LockReceiver/LockService 实现“解锁手机后自动弹出锁屏”的门禁（手机场景）。 -->
+        <!-- 主活动：既作为普通应用入口，又注册为 HOME（桌面）。
+             设为默认桌面后，电视/盒子开机、按主页键即进入答题锁屏（路线 1，最稳）。
+             同时配合 LockAccessibilityService 实现“解锁后自动弹出锁屏”（路线 2，手机推荐）。 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="landscape">
+            android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -34,20 +28,26 @@
             </intent-filter>
         </activity>
 
-        <!-- 守护服务：保持存活，未通过验证时把锁屏重新拉到前台 -->
+        <!-- 门禁守护：无障碍服务，解锁后可靠弹出全屏锁屏（无需悬浮窗、不显示常驻通知） -->
         <service
-            android:name=".LockService"
-            android:exported="false" />
+            android:name=".LockAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
 
-        <!-- 开机 / 亮屏 / 解锁 广播：拉起守护服务，并在解锁时弹出锁屏 -->
+        <!-- 开机广播：设备启动后拉起锁屏（若已设为默认桌面则由系统直接作为 home 启动） -->
         <receiver
             android:name=".LockReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
-                <action android:name="android.intent.action.USER_PRESENT" />
-                <action android:name="android.intent.action.SCREEN_ON" />
             </intent-filter>
         </receiver>
     </application>
