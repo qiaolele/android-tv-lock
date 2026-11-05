@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>电视锁 · 先看题后看电视</title>
 <style>
   :root {
@@ -18,27 +18,39 @@
     --danger: #f85149;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* 占满整个视口；dvh 处理移动端地址栏/工具栏动态高度；safe-area 避开刘海/状态栏/导航栏 */
   html, body {
     width: 100%; height: 100%;
+    height: 100dvh;
     background: var(--bg);
     color: var(--text);
     font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", system-ui, sans-serif;
     overflow: hidden;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
   }
+
+  /* 不再固定 1920x1080 画布，改为占满视口，由内部 clamp() 自适应缩放 */
   #app {
-    position: absolute;
-    left: 50%; top: 50%;
-    width: 1920px; height: 1080px;
-    transform-origin: center center;
-    transform: translate(-50%, -50%) scale(1);
-    background: radial-gradient(1200px 800px at 50% -10%, #1b2433 0%, var(--bg) 60%);
+    position: relative;
+    width: 100%; height: 100%;
+    background: radial-gradient(120% 90% at 50% -10%, #1b2433 0%, var(--bg) 60%);
   }
-  .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; padding: 80px 120px; }
+
+  .screen {
+    position: absolute; inset: 0; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    padding:
+      calc(env(safe-area-inset-top, 0px) + 3vmin)
+      calc(env(safe-area-inset-right, 0px) + 4vmin)
+      calc(env(safe-area-inset-bottom, 0px) + 3vmin)
+      calc(env(safe-area-inset-left, 0px) + 4vmin);
+  }
   .screen.active { display: flex; }
 
-  .title { font-size: 96px; font-weight: 800; letter-spacing: 4px; }
-  .subtitle { font-size: 40px; color: var(--muted); margin-top: 24px; }
+  .title { font-size: clamp(32px, 7vmin, 96px); font-weight: 800; letter-spacing: 4px; text-align: center; }
+  .subtitle { font-size: clamp(18px, 3.2vmin, 40px); color: var(--muted); margin-top: clamp(12px, 2vmin, 24px); text-align: center; }
   .spacer { flex: 1; }
 
   /* 焦点元素通用 */
@@ -55,9 +67,9 @@
 
   /* 按钮 */
   .btn {
-    min-width: 360px;
-    padding: 36px 56px;
-    font-size: 48px;
+    min-width: clamp(160px, 26vmin, 360px);
+    padding: clamp(12px, 2.4vmin, 36px) clamp(20px, 3.6vmin, 56px);
+    font-size: clamp(20px, 3.6vmin, 48px);
     font-weight: 700;
     color: var(--text);
     background: var(--panel-2);
@@ -67,21 +79,22 @@
     text-align: center;
   }
   .btn.primary { background: linear-gradient(180deg, #2a3340, #1c232c); border-color: var(--accent-2); }
-  .btn-row { display: flex; gap: 48px; margin-top: 60px; }
+  .btn-row { display: flex; gap: clamp(18px, 3.2vmin, 48px); margin-top: clamp(22px, 4vmin, 60px); flex-wrap: wrap; justify-content: center; }
 
-  .hint { font-size: 30px; color: var(--muted); margin-top: 32px; line-height: 1.6; text-align: center; }
+  .hint { font-size: clamp(15px, 2.4vmin, 30px); color: var(--muted); margin-top: clamp(16px, 2.8vmin, 32px); line-height: 1.6; text-align: center; }
 
   /* 顶部状态栏 */
-  .topbar { position: absolute; top: 48px; left: 120px; right: 120px; display: flex; justify-content: space-between; align-items: center; font-size: 34px; }
-  .badge { padding: 10px 28px; border-radius: 999px; background: var(--panel-2); border: 3px solid #30363d; color: var(--muted); }
+  .topbar { position: absolute; top: calc(env(safe-area-inset-top, 0px) + clamp(16px, 3vmin, 48px)); left: 4vmin; right: 4vmin; display: flex; justify-content: space-between; align-items: center; font-size: clamp(18px, 3vmin, 34px); }
+  .badge { padding: clamp(6px, 1vmin, 10px) clamp(16px, 2.4vmin, 28px); border-radius: 999px; background: var(--panel-2); border: 3px solid #30363d; color: var(--muted); }
 
   /* 答题区 */
-  .question { font-size: 96px; font-weight: 800; letter-spacing: 6px; margin-top: 16px; }
+  .question { font-size: clamp(40px, 9vmin, 110px); font-weight: 800; letter-spacing: 6px; margin-top: clamp(10px, 1.8vmin, 24px); }
   .answer-box {
-    margin-top: 16px;
-    min-width: 460px; min-height: 108px;
-    padding: 14px 40px;
-    font-size: 96px; font-weight: 800; color: var(--accent);
+    margin-top: clamp(10px, 1.8vmin, 24px);
+    min-width: clamp(220px, 38vmin, 520px);
+    min-height: clamp(54px, 10vmin, 120px);
+    padding: clamp(8px, 1.6vmin, 20px) clamp(20px, 3vmin, 40px);
+    font-size: clamp(36px, 8vmin, 100px); font-weight: 800; color: var(--accent);
     background: var(--panel); border: 5px solid #30363d; border-radius: 22px;
     display: flex; align-items: center; justify-content: center;
     letter-spacing: 8px;
@@ -94,47 +107,61 @@
     60% { transform: translateX(-12px); }
     80% { transform: translateX(12px); }
   }
-  .flash { height: 46px; margin-top: 14px; font-size: 36px; color: var(--danger); font-weight: 700; opacity: 0; transition: opacity .2s; }
+  .flash { height: clamp(26px, 4vmin, 56px); margin-top: clamp(8px, 1.4vmin, 18px); font-size: clamp(18px, 3vmin, 40px); color: var(--danger); font-weight: 700; opacity: 0; transition: opacity .2s; }
   .flash.show { opacity: 1; }
 
-  /* 数字键盘 */
-  .keypad { display: grid; grid-template-columns: repeat(4, 132px); grid-template-rows: repeat(4, 110px); gap: 16px; margin-top: 16px; }
+  /* 数字键盘：弹性占满剩余高度，格子 1fr 均分，永不溢出 */
+  .keypad {
+    display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr);
+    gap: clamp(10px, 2vmin, 28px); margin-top: clamp(14px, 2.4vmin, 40px);
+    width: min(94vw, 86vmin); max-width: 760px;
+    flex: 1 1 auto; min-height: 0;
+  }
   .key {
     display: flex; align-items: center; justify-content: center;
-    font-size: 52px; font-weight: 700;
+    font-size: clamp(28px, 5vmin, 64px); font-weight: 700;
     background: var(--panel-2); border: 4px solid #30363d; border-radius: 18px; cursor: pointer;
+    min-width: 0; min-height: 0;
   }
-  .key.ok { background: linear-gradient(180deg, #2ea043, #238636); border-color: #2ea043; color: #fff; font-size: 56px; }
-  .key.back { background: linear-gradient(180deg, #d9772e, #bb651f); border-color: #d9772e; color: #fff; font-size: 56px; }
+  .key.ok { background: linear-gradient(180deg, #2ea043, #238636); border-color: #2ea043; color: #fff; font-size: clamp(24px, 4.4vmin, 56px); }
+  .key.back { background: linear-gradient(180deg, #d9772e, #bb651f); border-color: #d9772e; color: #fff; font-size: clamp(24px, 4.4vmin, 56px); }
   .key.empty { background: transparent; border: none; cursor: default; }
 
   /* 设置页 */
-  .setting-group { width: 100%; max-width: 1400px; margin-bottom: 40px; }
-  .setting-label { font-size: 36px; color: var(--muted); margin-bottom: 12px; }
-  .options { display: flex; gap: 28px; flex-wrap: wrap; }
+  .setting-group { width: 100%; max-width: min(94vw, 1400px); margin-bottom: clamp(18px, 3vmin, 40px); }
+  .setting-label { font-size: clamp(20px, 3vmin, 40px); color: var(--muted); margin-bottom: clamp(8px, 1.4vmin, 12px); }
+  .options { display: flex; gap: clamp(14px, 2.4vmin, 28px); flex-wrap: wrap; justify-content: center; }
   .opt {
-    padding: 20px 36px; font-size: 36px; font-weight: 700;
+    padding: clamp(12px, 2vmin, 24px) clamp(18px, 3vmin, 44px); font-size: clamp(18px, 3vmin, 40px); font-weight: 700;
     background: var(--panel-2); border: 4px solid #30363d; border-radius: 18px; cursor: pointer;
   }
   .opt.sel { background: var(--panel); border-color: var(--accent); color: var(--accent); }
 
-  /* 解锁页（选择电视） */
-  .unlock-time { font-size: 44px; font-weight: 800; color: var(--ok); }
-  .unlock-sub { font-size: 42px; color: var(--muted); margin-top: 20px; }
-  .countdown-note { font-size: 34px; color: var(--muted); margin-top: 30px; }
-  .app-grid { display: grid; grid-template-columns: repeat(3, 320px); gap: 40px; margin-top: 40px; }
-  .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 40px 20px; background: var(--panel-2); border: 4px solid #30363d; border-radius: 24px; cursor: pointer; }
-  .app-icon { font-size: 90px; line-height: 1; }
-  .app-name { font-size: 38px; font-weight: 700; color: var(--text); }
+  /* 解锁页（选择电视）：网格弹性占满剩余高度，格子 1fr 均分 */
+  .unlock-time { font-size: clamp(26px, 4vmin, 44px); font-weight: 800; color: var(--ok); }
+  .unlock-sub { font-size: clamp(22px, 3.6vmin, 42px); color: var(--muted); margin-top: clamp(12px, 2vmin, 20px); }
+  .countdown-note { font-size: clamp(18px, 3vmin, 34px); color: var(--muted); margin-top: clamp(16px, 3vmin, 30px); }
+  .app-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 1fr; gap: clamp(16px, 3vmin, 40px); margin-top: clamp(20px, 3vmin, 40px);
+    width: min(94vw, 82vmin); max-width: 980px;
+    flex: 1 1 auto; min-height: 0;
+  }
+  .app-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(10px, 1.6vmin, 18px); padding: clamp(16px, 3vmin, 40px) clamp(10px, 2vmin, 20px); background: var(--panel-2); border: 4px solid #30363d; border-radius: 24px; cursor: pointer; min-height: 0; }
+  .app-icon { font-size: clamp(46px, 8vmin, 90px); line-height: 1; }
+  .app-name { font-size: clamp(18px, 3.4vmin, 38px); font-weight: 700; color: var(--text); text-align: center; }
 
   /* 全局提示 */
   #toast {
-    position: absolute; left: 50%; bottom: 70px; transform: translateX(-50%);
-    padding: 22px 48px; background: rgba(248,81,73,.95); color: #fff;
-    font-size: 38px; font-weight: 700; border-radius: 18px;
+    position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 4vmin); transform: translateX(-50%);
+    padding: clamp(12px, 2vmin, 22px) clamp(22px, 3.4vmin, 48px); background: rgba(248,81,73,.95); color: #fff;
+    font-size: clamp(20px, 3vmin, 38px); font-weight: 700; border-radius: 18px;
     opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 50;
   }
   #toast.show { opacity: 1; }
+
+  /* 设置页内容较多，超高时允许滚动兜底 */
+  #screen-settings { justify-content: flex-start; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -284,6 +311,7 @@
       <div class="app-tile focusable" data-package="tv.danmaku.bili" data-name="哔哩哔哩"><div class="app-icon">📡</div><div class="app-name">哔哩哔哩</div></div>
       <div class="app-tile focusable" data-package="com.hunantv.imgo" data-name="芒果TV"><div class="app-icon">🥭</div><div class="app-name">芒果TV</div></div>
       <div class="app-tile focusable" data-package="com.miguvideo" data-name="咪咕视频"><div class="app-icon">🎞️</div><div class="app-name">咪咕视频</div></div>
+      <div class="app-tile focusable" data-package="__HOME__" data-name="系统主屏"><div class="app-icon">🏠</div><div class="app-name">系统主屏</div></div>
     </div>
     <div class="countdown-note" id="countdown-note">时间到将自动回到挑战</div>
     <div class="btn focusable" data-action="rechallenge" style="margin-top:30px">重新挑战（家长）</div>
@@ -296,21 +324,7 @@
 (function () {
   "use strict";
 
-  // ---------- 适配缩放（等比 fit，任何屏幕比例都不裁切） ----------
-  var app = document.getElementById("app");
-  function fit() {
-    var vw = window.innerWidth || document.documentElement.clientWidth || 1920;
-    var vh = window.innerHeight || document.documentElement.clientHeight || 1080;
-    var s = Math.min(vw / 1920, vh / 1080);
-    app.style.transform = "translate(-50%, -50%) scale(" + s + ")";
-  }
-  function fitDelayed() { setTimeout(fit, 200); setTimeout(fit, 600); setTimeout(fit, 1200); }
-  window.addEventListener("resize", fit);
-  window.addEventListener("orientationchange", fitDelayed);
-  window.addEventListener("load", fitDelayed);
-  if (window.visualViewport) window.visualViewport.addEventListener("resize", fit);
-  fit();
-  fitDelayed();
+  // ---------- 适配：布局已改为流式自适应（占满视口 + clamp 缩放 + safe-area），无需 JS 缩放 ----------
 
   // ---------- 配置（含本地持久化） ----------
   var opsName = { "+": "加", "-": "减", "×": "乘", "÷": "除" };
@@ -498,6 +512,15 @@
     }
   }
 
+  // ---------- 进入系统主屏 / 桌面（APK 用 HOME intent；网页版提示） ----------
+  function launchHome() {
+    if (window.AndroidBridge && typeof window.AndroidBridge.launchHome === "function") {
+      window.AndroidBridge.launchHome();
+    } else {
+      toast("请在设备上使用「系统主屏」");
+    }
+  }
+
   // ---------- 解锁 / 倒计时 ----------
   function unlock() {
     if (timer) { clearInterval(timer); timer = null; }
@@ -537,7 +560,11 @@
   // ---------- 动作分发 ----------
   function activate(el) {
     if (!el) return;
-    if (el.getAttribute("data-package")) { launchApp(el.getAttribute("data-package"), el.getAttribute("data-name")); return; }
+    if (el.getAttribute("data-package")) {
+      var pkg = el.getAttribute("data-package");
+      if (pkg === "__HOME__") { launchHome(); return; }
+      launchApp(pkg, el.getAttribute("data-name")); return;
+    }
     if (el.classList.contains("opt")) {
       var group = el.closest(".options");
       var gname = group.getAttribute("data-group");
